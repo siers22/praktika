@@ -2,11 +2,11 @@ package router
 
 import (
 	"net/http"
-	"os"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/siers22/praktika/back/internal/docs"
 	"github.com/siers22/praktika/back/internal/handler"
 	"github.com/siers22/praktika/back/internal/middleware"
 	"github.com/siers22/praktika/back/internal/model"
@@ -41,16 +41,11 @@ func Setup(
 	// Static uploads
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
 
-	// OpenAPI spec
+	// OpenAPI spec (embedded in binary)
 	r.Get("/api/v1/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
-		data, err := os.ReadFile("openapi.yaml")
-		if err != nil {
-			http.Error(w, "openapi.yaml not found", http.StatusNotFound)
-			return
-		}
 		w.Header().Set("Content-Type", "application/yaml")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Write(data)
+		w.Write(docs.OpenAPISpec)
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
