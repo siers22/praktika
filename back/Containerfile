@@ -18,6 +18,7 @@ WORKDIR /app
 
 COPY --from=builder /app/server .
 COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/openapi.yaml .
 
 RUN mkdir -p /app/uploads
 
