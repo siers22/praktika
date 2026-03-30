@@ -48,6 +48,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Seed default admin if no users exist
+	if err := db.SeedAdminUser(pool, cfg.DefaultAdminUser, cfg.DefaultAdminPass); err != nil {
+		slog.Error("seed failed", "error", err)
+		os.Exit(1)
+	}
+
 	// Ensure upload directory exists
 	if err := os.MkdirAll(cfg.UploadDir, 0755); err != nil {
 		slog.Error("failed to create upload dir", "error", err)
