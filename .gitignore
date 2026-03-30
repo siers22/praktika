@@ -1,0 +1,50 @@
+# Go
+back/vendor/
+back/*.exe
+back/*.out
+back/back
+back/server
+back/bin/
+back/dist/
+
+# Go env
+*.env
+.env.local
+.env.*.local
+
+# Node
+front/node_modules/
+front/.next/
+front/out/
+front/.pnp
+front/.pnp.js
+
+# Uploads (dev local)
+back/uploads/*
+!back/uploads/.gitkeep
+
+# DB data
+pg_data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Secrets / env files
+.env
+.env.local
+back/.env
+front/.env.local
+
+# Binary
+back/server

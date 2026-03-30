@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS refresh_tokens;
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS inventory_items;
+DROP TABLE IF EXISTS inventory_sessions;
+DROP TABLE IF EXISTS movements;
+DROP TABLE IF EXISTS equipment_photos;
+DROP TABLE IF EXISTS equipment;
+DROP TABLE IF EXISTS departments;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS users;
+DROP EXTENSION IF EXISTS "uuid-ossp";

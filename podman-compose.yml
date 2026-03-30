@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: inventory-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory_user -d inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./back
+      dockerfile: Containerfile
+    container_name: inventory-backend
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: "8080"
+      DATABASE_URL: "postgres://inventory_user:${DB_PASSWORD:-secret}@db:5432/inventory?sslmode=disable"
+      JWT_SECRET: ${JWT_SECRET:-changeme_replace_in_production}
+      JWT_ACCESS_TTL: "15m"
+      JWT_REFRESH_TTL: "168h"
+      UPLOAD_DIR: "/app/uploads"
+      DEBUG: "${DEBUG:-false}"
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pg_data:
+  uploads:
