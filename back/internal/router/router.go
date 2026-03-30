@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -39,6 +40,18 @@ func Setup(
 
 	// Static uploads
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
+
+	// OpenAPI spec
+	r.Get("/api/v1/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+		data, err := os.ReadFile("openapi.yaml")
+		if err != nil {
+			http.Error(w, "openapi.yaml not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/yaml")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Write(data)
+	})
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public routes

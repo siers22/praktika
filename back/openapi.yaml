@@ -1,0 +1,1010 @@
+openapi: "3.0.3"
+info:
+  title: Inventory API
+  description: Электронный каталог «Инвентаризация оборудования»
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+
+    Pagination:
+      type: object
+      properties:
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+
+    TokenPair:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        full_name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, inventory, viewer] }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Category:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    Department:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        location: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    EquipmentPhoto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        equipment_id: { type: string, format: uuid }
+        file_path: { type: string }
+        uploaded_at: { type: string, format: date-time }
+
+    Equipment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        inventory_number: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        category_id: { type: string, format: uuid }
+        category_name: { type: string, nullable: true }
+        serial_number: { type: string, nullable: true }
+        model: { type: string, nullable: true }
+        manufacturer: { type: string, nullable: true }
+        purchase_date: { type: string, format: date, nullable: true }
+        purchase_price: { type: number, format: double, nullable: true }
+        warranty_expiry: { type: string, format: date, nullable: true }
+        status:
+          type: string
+          enum: [in_use, in_storage, in_repair, written_off, reserved]
+        department_id: { type: string, format: uuid }
+        department_name: { type: string, nullable: true }
+        responsible_person_id: { type: string, format: uuid, nullable: true }
+        responsible_person_name: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        is_archived: { type: boolean }
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/EquipmentPhoto'
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Movement:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        equipment_id: { type: string, format: uuid }
+        equipment_name: { type: string, nullable: true }
+        inventory_number: { type: string, nullable: true }
+        from_department_id: { type: string, format: uuid }
+        from_department_name: { type: string, nullable: true }
+        to_department_id: { type: string, format: uuid }
+        to_department_name: { type: string, nullable: true }
+        moved_by: { type: string, format: uuid }
+        moved_by_name: { type: string, nullable: true }
+        moved_at: { type: string, format: date-time }
+        reason: { type: string, nullable: true }
+
+    InventorySession:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        department_id: { type: string, format: uuid }
+        department_name: { type: string, nullable: true }
+        status: { type: string, enum: [in_progress, completed] }
+        created_by: { type: string, format: uuid }
+        created_by_name: { type: string, nullable: true }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time, nullable: true }
+
+    InventoryItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid }
+        equipment_id: { type: string, format: uuid }
+        equipment_name: { type: string, nullable: true }
+        inventory_number: { type: string, nullable: true }
+        expected_status: { type: string }
+        actual_status: { type: string, enum: [found, not_found, damaged] }
+        comment: { type: string, nullable: true }
+        checked_at: { type: string, format: date-time }
+
+    AuditLog:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        username: { type: string, nullable: true }
+        action: { type: string }
+        entity_type: { type: string }
+        entity_id: { type: string, format: uuid, nullable: true }
+        details: { type: object, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    DashboardData:
+      type: object
+      properties:
+        total_equipment: { type: integer }
+        by_status:
+          type: object
+          additionalProperties: { type: integer }
+        by_category:
+          type: array
+          items:
+            type: object
+            properties:
+              category: { type: string }
+              count: { type: integer }
+        recent_movements:
+          type: array
+          items:
+            $ref: '#/components/schemas/Movement'
+        warranty_expiring_soon:
+          type: array
+          items:
+            $ref: '#/components/schemas/Equipment'
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema: { type: integer, default: 1 }
+    PerPageParam:
+      name: per_page
+      in: query
+      schema: { type: integer, default: 20, maximum: 50 }
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+paths:
+  # ─── AUTH ────────────────────────────────────────────────────────────────────
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Авторизация
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, example: admin }
+                password: { type: string, example: "secret123" }
+      responses:
+        "200":
+          description: Успешная авторизация
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/TokenPair' }
+        "401":
+          description: Неверные учётные данные
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновление access-токена
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          description: Новая пара токенов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/TokenPair' }
+        "401":
+          description: Невалидный refresh-токен
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Выход (инвалидация refresh-токена)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "204":
+          description: Успешно
+
+  /auth/password:
+    put:
+      tags: [Auth]
+      summary: Смена пароля
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [old_password, new_password]
+              properties:
+                old_password: { type: string }
+                new_password: { type: string, minLength: 8 }
+      responses:
+        "204":
+          description: Успешно
+        "400":
+          description: Неверный старый пароль
+
+  # ─── USERS ───────────────────────────────────────────────────────────────────
+
+  /users:
+    get:
+      tags: [Users]
+      summary: Список пользователей (admin)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        "200":
+          description: Список пользователей
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/User' }
+                  meta: { $ref: '#/components/schemas/Pagination' }
+    post:
+      tags: [Users]
+      summary: Создание пользователя (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, full_name, email, role]
+              properties:
+                username: { type: string, minLength: 3, maxLength: 50 }
+                password: { type: string, minLength: 8 }
+                full_name: { type: string }
+                email: { type: string, format: email }
+                role: { type: string, enum: [admin, inventory, viewer] }
+      responses:
+        "201":
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/User' }
+
+  /users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Users]
+      summary: Профиль пользователя (admin)
+      responses:
+        "200":
+          description: Пользователь
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/User' }
+        "404":
+          description: Не найден
+    put:
+      tags: [Users]
+      summary: Обновление пользователя (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [full_name, email, role]
+              properties:
+                full_name: { type: string }
+                email: { type: string, format: email }
+                role: { type: string, enum: [admin, inventory, viewer] }
+      responses:
+        "200":
+          description: Обновлён
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/User' }
+
+  /users/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    patch:
+      tags: [Users]
+      summary: Блокировка / разблокировка (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [is_active]
+              properties:
+                is_active: { type: boolean }
+      responses:
+        "204":
+          description: Успешно
+
+  # ─── EQUIPMENT ───────────────────────────────────────────────────────────────
+
+  /equipment:
+    get:
+      tags: [Equipment]
+      summary: Список оборудования
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Поиск по названию, инвентарному или серийному номеру
+        - name: category_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: department_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [in_use, in_storage, in_repair, written_off, reserved] }
+      responses:
+        "200":
+          description: Список оборудования
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Equipment' }
+                  meta: { $ref: '#/components/schemas/Pagination' }
+    post:
+      tags: [Equipment]
+      summary: Создание карточки (admin, inventory)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inventory_number, name, category_id, status, department_id]
+              properties:
+                inventory_number: { type: string }
+                name: { type: string }
+                description: { type: string, nullable: true }
+                category_id: { type: string, format: uuid }
+                serial_number: { type: string, nullable: true }
+                model: { type: string, nullable: true }
+                manufacturer: { type: string, nullable: true }
+                purchase_date: { type: string, format: date, nullable: true }
+                purchase_price: { type: number, nullable: true }
+                warranty_expiry: { type: string, format: date, nullable: true }
+                status: { type: string, enum: [in_use, in_storage, in_repair, written_off, reserved] }
+                department_id: { type: string, format: uuid }
+                responsible_person_id: { type: string, format: uuid, nullable: true }
+                notes: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Создано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Equipment' }
+
+  /equipment/export/csv:
+    get:
+      tags: [Equipment]
+      summary: Экспорт в CSV
+      responses:
+        "200":
+          description: CSV-файл
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+
+  /equipment/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Equipment]
+      summary: Карточка оборудования
+      responses:
+        "200":
+          description: Оборудование
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Equipment' }
+        "404":
+          description: Не найдено
+    put:
+      tags: [Equipment]
+      summary: Обновление карточки (admin, inventory)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, category_id, status, department_id]
+              properties:
+                name: { type: string }
+                description: { type: string, nullable: true }
+                category_id: { type: string, format: uuid }
+                serial_number: { type: string, nullable: true }
+                model: { type: string, nullable: true }
+                manufacturer: { type: string, nullable: true }
+                purchase_date: { type: string, format: date, nullable: true }
+                purchase_price: { type: number, nullable: true }
+                warranty_expiry: { type: string, format: date, nullable: true }
+                status: { type: string, enum: [in_use, in_storage, in_repair, written_off, reserved] }
+                department_id: { type: string, format: uuid }
+                responsible_person_id: { type: string, format: uuid, nullable: true }
+                notes: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Обновлено
+    delete:
+      tags: [Equipment]
+      summary: Архивация (admin)
+      responses:
+        "204":
+          description: Архивировано
+
+  /equipment/{id}/photos:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Equipment]
+      summary: Загрузка фото (admin, inventory)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Фото загружено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/EquipmentPhoto' }
+
+  /equipment/{id}/photos/{photoId}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+      - name: photoId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Equipment]
+      summary: Удаление фото (admin, inventory)
+      responses:
+        "204":
+          description: Удалено
+
+  /equipment/{id}/movements:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Equipment]
+      summary: История перемещений оборудования
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        "200":
+          description: Перемещения
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Movement' }
+                  meta: { $ref: '#/components/schemas/Pagination' }
+
+  # ─── CATEGORIES ──────────────────────────────────────────────────────────────
+
+  /categories:
+    get:
+      tags: [Categories]
+      summary: Список категорий
+      responses:
+        "200":
+          description: Категории
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Category' }
+    post:
+      tags: [Categories]
+      summary: Создание категории (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 100 }
+                description: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Создана
+
+  /categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    put:
+      tags: [Categories]
+      summary: Обновление категории (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Обновлена
+    delete:
+      tags: [Categories]
+      summary: Удаление категории (admin)
+      responses:
+        "204":
+          description: Удалена
+
+  # ─── DEPARTMENTS ─────────────────────────────────────────────────────────────
+
+  /departments:
+    get:
+      tags: [Departments]
+      summary: Список подразделений
+      responses:
+        "200":
+          description: Подразделения
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Department' }
+    post:
+      tags: [Departments]
+      summary: Создание подразделения (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 150 }
+                location: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Создано
+
+  /departments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    put:
+      tags: [Departments]
+      summary: Обновление подразделения (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                location: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Обновлено
+    delete:
+      tags: [Departments]
+      summary: Удаление подразделения (admin)
+      responses:
+        "204":
+          description: Удалено
+
+  # ─── INVENTORIES ─────────────────────────────────────────────────────────────
+
+  /inventories:
+    get:
+      tags: [Inventory]
+      summary: Список сессий инвентаризации (admin, inventory)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        "200":
+          description: Сессии
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/InventorySession' }
+                  meta: { $ref: '#/components/schemas/Pagination' }
+    post:
+      tags: [Inventory]
+      summary: Создание сессии (admin, inventory)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [department_id]
+              properties:
+                department_id: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Создана
+
+  /inventories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Inventory]
+      summary: Детали сессии + список проверенных единиц (admin, inventory)
+      responses:
+        "200":
+          description: Сессия с элементами
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      session: { $ref: '#/components/schemas/InventorySession' }
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/InventoryItem' }
+
+  /inventories/{id}/items:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Inventory]
+      summary: Отметить единицу (admin, inventory)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [equipment_id, actual_status]
+              properties:
+                equipment_id: { type: string, format: uuid }
+                actual_status: { type: string, enum: [found, not_found, damaged] }
+                comment: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Записано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/InventoryItem' }
+
+  /inventories/{id}/items/{itemId}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+      - name: itemId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Inventory]
+      summary: Обновить отметку (admin, inventory)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actual_status]
+              properties:
+                actual_status: { type: string, enum: [found, not_found, damaged] }
+                comment: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Обновлено
+
+  /inventories/{id}/complete:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Inventory]
+      summary: Завершить инвентаризацию (admin, inventory)
+      responses:
+        "204":
+          description: Завершена
+
+  /inventories/{id}/export/csv:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Inventory]
+      summary: Экспорт акта инвентаризации в CSV (admin, inventory)
+      responses:
+        "200":
+          description: CSV-файл
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+
+  # ─── MOVEMENTS ───────────────────────────────────────────────────────────────
+
+  /movements:
+    get:
+      tags: [Movements]
+      summary: Список всех перемещений
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: date_from
+          in: query
+          schema: { type: string, format: date }
+        - name: date_to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Перемещения
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Movement' }
+                  meta: { $ref: '#/components/schemas/Pagination' }
+    post:
+      tags: [Movements]
+      summary: Переместить оборудование (admin, inventory)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [equipment_id, to_department_id]
+              properties:
+                equipment_id: { type: string, format: uuid }
+                to_department_id: { type: string, format: uuid }
+                reason: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Перемещение зарегистрировано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Movement' }
+
+  # ─── REPORTS ─────────────────────────────────────────────────────────────────
+
+  /reports/summary:
+    get:
+      tags: [Reports]
+      summary: Сводный отчёт (количество по статусам и категориям)
+      responses:
+        "200":
+          description: Сводный отчёт
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total_equipment: { type: integer }
+                      by_status:
+                        type: object
+                        additionalProperties: { type: integer }
+                      by_category:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            category: { type: string }
+                            count: { type: integer }
+
+  /reports/by-department:
+    get:
+      tags: [Reports]
+      summary: Отчёт по подразделениям
+      responses:
+        "200":
+          description: Статистика по подразделениям
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        count: { type: integer }
+                        total_value: { type: number }
+
+  /reports/dashboard:
+    get:
+      tags: [Reports]
+      summary: Данные для дашборда
+      responses:
+        "200":
+          description: Дашборд
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DashboardData' }
+
+  # ─── AUDIT ───────────────────────────────────────────────────────────────────
+
+  /audit-logs:
+    get:
+      tags: [Audit]
+      summary: Журнал действий (admin)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: user_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: action
+          in: query
+          schema: { type: string, example: create }
+        - name: entity_type
+          in: query
+          schema: { type: string, example: equipment }
+        - name: date_from
+          in: query
+          schema: { type: string, format: date }
+        - name: date_to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Журнал
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditLog' }
+                  meta: { $ref: '#/components/schemas/Pagination' }
