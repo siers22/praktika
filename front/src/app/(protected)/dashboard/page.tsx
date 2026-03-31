@@ -52,13 +52,15 @@ export default function DashboardPage() {
 
   if (!data) return null
 
-  const statusChartData = Object.entries(data.by_status).map(([key, count]) => ({
+  const statusChartData = Object.entries(data.by_status || {}).map(([key, count]) => ({
     name: STATUS_LABELS[key as EquipmentStatus] || key,
     value: count,
     color: STATUS_COLORS_HEX[key] || '#9ca3af',
   }))
 
-  const categoryChartData = data.by_category.slice(0, 8)
+  const categoryChartData = (data.by_category || []).slice(0, 8)
+  const recentMovements = data.recent_movements || []
+  const warrantyExpiring = data.warranty_expiring_soon || []
 
   const inUse = data.by_status['in_use'] || 0
   const inRepair = data.by_status['in_repair'] || 0
@@ -86,7 +88,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Перемещений"
-          value={data.recent_movements?.length || 0}
+          value={recentMovements.length}
           icon={<ArrowLeftRight size={20} />}
         />
       </div>
@@ -139,10 +141,10 @@ export default function DashboardPage() {
       {/* Bottom row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Warranty expiring */}
-        {data.warranty_expiring_soon?.length > 0 && (
+        {warrantyExpiring.length > 0 && (
           <Card title="Гарантия истекает (30 дней)">
             <ul className="space-y-2">
-              {data.warranty_expiring_soon.map((eq) => (
+              {warrantyExpiring.map((eq) => (
                 <li key={eq.id} className="flex items-center justify-between text-xs font-mono">
                   <span className="text-gray-700 truncate max-w-[60%]">{eq.name}</span>
                   <span className="text-amber-600">{formatDate(eq.warranty_expiry)}</span>
@@ -153,10 +155,10 @@ export default function DashboardPage() {
         )}
 
         {/* Recent movements */}
-        {data.recent_movements?.length > 0 && (
+        {recentMovements.length > 0 && (
           <Card title="Последние перемещения">
             <ul className="space-y-2">
-              {data.recent_movements.slice(0, 6).map((m) => (
+              {recentMovements.slice(0, 6).map((m) => (
                 <li key={m.id} className="flex items-center justify-between text-xs font-mono">
                   <span className="text-gray-700 truncate max-w-[55%]">{m.equipment_name || m.inventory_number}</span>
                   <span className="text-gray-400">{formatDate(m.moved_at)}</span>
